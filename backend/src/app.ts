@@ -18,11 +18,18 @@ const frontendIndex = path.join(frontendDir, "index.html");
 const hasFrontend = existsSync(frontendIndex);
 
 /**
- * Reflect the requesting origin unless ALLOWED_ORIGINS is set. Production used to
- * default to `origin: false`, which blocked a Vercel UI from calling this API.
+ * Always reflect the request Origin. A locked ALLOWED_ORIGINS list (or the old
+ * production default `origin: false`) made Vercel preflight fail with no
+ * Access-Control-Allow-Origin, so the dashboard never loaded.
  */
-const allowed = (process.env.ALLOWED_ORIGINS ?? "").split(",").map((o) => o.trim()).filter(Boolean);
-app.use(cors({ origin: allowed.length > 0 ? allowed : true }));
+app.use(
+  cors({
+    origin: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
+app.options("*", cors());
 app.use(express.json());
 
 if (!hasFrontend) {

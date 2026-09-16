@@ -60,11 +60,22 @@ function isLocalHost(hostname: string): boolean {
   return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
+function useSameOriginApi(hostname: string): boolean {
+  return (
+    isLocalHost(hostname) ||
+    hostname.endsWith(".vercel.app") ||
+    hostname === "e-inter-bluewheelz.onrender.com"
+  );
+}
+
 /**
- * Local Vite uses the `/api` proxy. Hosted UIs must call the BluWheelz Render API,
- * not the legacy e-inter-api service and not a frontend-only host.
+ * Vercel and the Render combined host must use same-origin `/api/v1` (proxy/rewrite).
+ * Absolute Render URLs trigger a CORS preflight that the browser will block.
  */
 function resolveApiBase(): string {
+  if (typeof window !== "undefined" && useSameOriginApi(window.location.hostname)) {
+    return "/api/v1";
+  }
   const raw = readApiOriginEnv();
   if (raw) {
     const origin = parseHttpOrigin(raw);
@@ -73,9 +84,6 @@ function resolveApiBase(): string {
     return `${CANONICAL_API_ORIGIN}/api/v1`;
   }
   if (typeof window !== "undefined") {
-    const { hostname } = window.location;
-    if (isLocalHost(hostname)) return "/api/v1";
-    if (hostname === "e-inter-bluewheelz.onrender.com") return "/api/v1";
     return `${CANONICAL_API_ORIGIN}/api/v1`;
   }
   return "/api/v1";
