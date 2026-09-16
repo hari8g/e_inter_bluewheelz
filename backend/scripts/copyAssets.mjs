@@ -14,3 +14,11 @@ try {
   const message = err instanceof Error ? err.message : String(err);
   console.warn("[build] Database/ not copied:", message);
 }
+
+try {
+  cpSync("../frontend/dist", "dist/public", { recursive: true });
+  console.log("[build] copied frontend/dist into dist/public");
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("[build] frontend/dist not copied:", message);
+}

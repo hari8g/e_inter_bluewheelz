@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "LISTEN=1 tsx watch src/runLocal.ts",
-    "build": "tsc && node scripts/copyAssets.mjs",
+    "build": "node scripts/buildUi.mjs && tsc && node scripts/copyAssets.mjs",
     "start": "node dist/runLocal.js",
     "test": "vitest run",
     "test:watch": "vitest",

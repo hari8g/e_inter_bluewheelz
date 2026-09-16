@@ -80,6 +80,15 @@ function getAuthToken(): string | null {
 }
 
 function parseError(status: number, text: string): Error {
+  const trimmed = text.trim();
+  if (
+    trimmed.startsWith("<") ||
+    /cannot post \/api\/v1\/auth\/login/i.test(trimmed)
+  ) {
+    return new Error(
+      "Login did not reach the e-inter API. Open the Render API URL (not a separate frontend host), or set VITE_API_ORIGIN to that API URL and rebuild.",
+    );
+  }
   try {
     const body = JSON.parse(text) as { error?: string };
     if (body.error === "invalid_credentials") return new Error("Invalid username or password.");

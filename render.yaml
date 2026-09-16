@@ -69,3 +69,5 @@ services:
         value: e-inter-normalizer-v1
       - key: KAFKA_PARTITIONS_CONCURRENT
         value: "3"
+      - key: SKIP_FRONTEND_BUILD
+        value: "1"
