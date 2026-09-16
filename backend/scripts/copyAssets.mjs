@@ -11,5 +11,6 @@ try {
   cpSync("../Database", "data/vehicles", { recursive: true });
   console.log("[build] copied Database/ vehicle files into dist/data/vehicles and data/vehicles");
 } catch (err) {
-  console.warn("[build] Database/ not copied:", (err as Error).message);
+  const message = err instanceof Error ? err.message : String(err);
+  console.warn("[build] Database/ not copied:", message);
 }
