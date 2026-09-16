@@ -16,6 +16,10 @@ import type {
   TripLedgerRow,
 } from "@/types/api";
 
+/** Live BluWheelz API (serves login + dashboard). The older e-inter-api host has no /auth/login. */
+const CANONICAL_API_ORIGIN = "https://e-inter-bluewheelz.onrender.com";
+const LEGACY_API_HOSTS = new Set(["e-inter-api.onrender.com"]);
+
 /**
  * Reads `VITE_API_ORIGIN` with common dashboard / .env mistakes removed (quotes,
  * CR/LF). Vite only exposes `VITE_*` to the client as strings.
@@ -32,14 +36,7 @@ function readApiOriginEnv(): string {
   return raw;
 }
 
-/**
- * Builds `/api/v1` for Vite dev proxy, or `https?://…/api/v1` when `VITE_API_ORIGIN`
- * is set. Invalid values fall back to `/api/v1`.
- */
-function resolveApiBase(): string {
-  const raw = readApiOriginEnv();
-  if (!raw) return "/api/v1";
-
+function parseHttpOrigin(raw: string): string | null {
   let toParse = raw.replace(/\/$/, "");
   if (!/^https?:\/\//i.test(toParse)) {
     if (/^(\[::1\]|localhost|127\.0\.0\.1)/i.test(toParse)) {
@@ -48,25 +45,41 @@ function resolveApiBase(): string {
       toParse = `https://${toParse}`;
     }
   }
-
-  let u: URL;
   try {
-    u = new URL(toParse);
+    const u = new URL(toParse);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    if (!u.hostname) return null;
+    if (LEGACY_API_HOSTS.has(u.hostname)) return CANONICAL_API_ORIGIN;
+    return u.origin;
   } catch {
-    console.warn("[e-inter] Invalid VITE_API_ORIGIN; using same-origin /api/v1", raw);
-    return "/api/v1";
+    return null;
   }
-  if (u.protocol !== "http:" && u.protocol !== "https:") {
-    console.warn("[e-inter] VITE_API_ORIGIN must be http(s); using /api/v1");
-    return "/api/v1";
-  }
-  if (!u.hostname) {
-    return "/api/v1";
-  }
-  return `${u.origin}/api/v1`;
 }
 
-const base = resolveApiBase();
+function isLocalHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+}
+
+/**
+ * Local Vite uses the `/api` proxy. Hosted UIs must call the BluWheelz Render API,
+ * not the legacy e-inter-api service and not a frontend-only host.
+ */
+function resolveApiBase(): string {
+  const raw = readApiOriginEnv();
+  if (raw) {
+    const origin = parseHttpOrigin(raw);
+    if (origin) return `${origin}/api/v1`;
+    console.warn("[e-inter] Invalid VITE_API_ORIGIN; using canonical API", raw);
+    return `${CANONICAL_API_ORIGIN}/api/v1`;
+  }
+  if (typeof window !== "undefined") {
+    const { hostname } = window.location;
+    if (isLocalHost(hostname)) return "/api/v1";
+    if (hostname === "e-inter-bluewheelz.onrender.com") return "/api/v1";
+    return `${CANONICAL_API_ORIGIN}/api/v1`;
+  }
+  return "/api/v1";
+}
 
 let unauthorizedHandler: (() => void) | null = null;
 
@@ -100,13 +113,17 @@ function parseError(status: number, text: string): Error {
   return new Error(text || `Request failed (${status})`);
 }
 
+function isMissingLoginRoute(status: number, text: string): boolean {
+  return status === 404 && /cannot post \/api\/v1\/auth\/login/i.test(text);
+}
+
 /**
  * Relative `/api/v1/…` cannot be resolved by `fetch` on `file:` pages or opaque
  * origins (`location.origin === "null"`), which surfaces as WebKit’s
  * "The string did not match the expected pattern."
  */
-function buildFetchUrl(path: string): string {
-  const joined = `${base}${path}`;
+function buildFetchUrl(path: string, apiBase = resolveApiBase()): string {
+  const joined = `${apiBase}${path}`;
   if (joined.startsWith("http://") || joined.startsWith("https://")) {
     try {
       return new URL(joined).href;
@@ -124,8 +141,8 @@ function buildFetchUrl(path: string): string {
   return joined;
 }
 
-async function j<T>(path: string, init?: RequestInit): Promise<T> {
-  const url = buildFetchUrl(path);
+async function j<T>(path: string, init?: RequestInit, apiBase?: string): Promise<T> {
+  const url = buildFetchUrl(path, apiBase);
   const headers = init?.headers ? new Headers(init.headers as HeadersInit) : new Headers();
   if (init?.body != null && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -140,6 +157,15 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
+    const canonicalBase = `${CANONICAL_API_ORIGIN}/api/v1`;
+    if (
+      path === "/auth/login" &&
+      isMissingLoginRoute(res.status, text) &&
+      apiBase !== canonicalBase &&
+      !url.startsWith(canonicalBase)
+    ) {
+      return j<T>(path, init, canonicalBase);
+    }
     if (res.status === 401 && path !== "/auth/login") {
       unauthorizedHandler?.();
     }
