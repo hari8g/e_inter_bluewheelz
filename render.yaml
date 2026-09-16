@@ -1,16 +1,67 @@
-# Render Blueprint — deploy the API as a Web Service.
-# https://render.com/docs/blueprint-spec
+# Render Blueprint — e-inter with Kafka CAN ingestion.
 #
-# After first deploy, set your Vercel frontend env VITE_API_ORIGIN to this
-# service’s URL (e.g. https://e-inter-api.onrender.com), no trailing slash.
+# Three services + a database. The ingest worker MUST NOT run on a plan that sleeps:
+# a sleeping consumer accrues lag, and lag beyond the Kafka topic retention is
+# permanent data loss.
+
+databases:
+  - name: e-inter-db
+    plan: basic-256mb          # free Postgres expires after 30 days
+    region: singapore          # nearest to India; confirm residency with Bosch legal
+    postgresMajorVersion: "16"
 
 services:
   - type: web
     name: e-inter-api
     runtime: node
-    plan: free
-    region: oregon
+    plan: starter              # free web instances sleep; the API must stay warm
+    region: singapore
     rootDir: backend
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/v1/health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: e-inter-db, property: connectionString }
+      - key: DEMO_MODE
+        value: "0"
+      - key: BOOTSTRAP_PILOT
+        value: "1"
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: KAFKA_SSL
+        value: "true"
+      - key: ADMIN_API_TOKEN
+        generateValue: true
+      - key: GPS_CAN_JOIN_WINDOW_SEC
+        value: "60"
+
+  - type: worker
+    name: e-inter-ingest
+    runtime: node
+    plan: starter
+    region: singapore
+    rootDir: backend
+    buildCommand: npm ci && npm run build
+    startCommand: npm run ingest
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase: { name: e-inter-db, property: connectionString }
+      - key: KAFKA_BOOTSTRAP
+        sync: false
+      - key: KAFKA_SSL
+        value: "true"
+      - key: KAFKA_SASL_MECHANISM
+        value: scram-sha-512
+      - key: KAFKA_USERNAME
+        sync: false
+      - key: KAFKA_PASSWORD
+        sync: false
+      - key: KAFKA_TOPIC_RAW
+        value: intellicar.telemetry.raw.v1
+      - key: KAFKA_TOPIC_DLQ
+        value: intellicar.telemetry.dlq.v1
+      - key: KAFKA_CONSUMER_GROUP
+        value: e-inter-normalizer-v1
+      - key: KAFKA_PARTITIONS_CONCURRENT
+        value: "3"

@@ -8,19 +8,32 @@
   },
   "scripts": {
     "dev": "LISTEN=1 tsx watch src/runLocal.ts",
-    "build": "tsc",
-    "start": "node dist/runLocal.js"
+    "build": "tsc && node scripts/copyAssets.mjs",
+    "start": "node dist/runLocal.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "migrate": "node dist/db/migrate.js",
+    "migrate:dev": "tsx src/db/migrate.ts",
+    "ingest": "node dist/ingest/worker.js",
+    "ingest:dev": "tsx watch src/ingest/worker.ts",
+    "seed:pilot": "tsx scripts/seedPilotFleet.ts",
+    "produce:sample": "tsx scripts/produceSample.ts",
+    "rollup": "tsx src/jobs/runRollup.ts"
   },
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^4.21.2",
+    "kafkajs": "^2.2.4",
+    "pg": "^8.23.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.2",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.9"
   }
 }

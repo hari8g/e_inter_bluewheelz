@@ -8,6 +8,12 @@ import type {
   MaintenanceItem,
   PortfolioValuationPayload,
   Vehicle,
+  CanLivePayload,
+  CellSnapshotPayload,
+  DailyDistancePoint,
+  GpsHistoryPayload,
+  GpsMetrics,
+  TripLedgerRow,
 } from "@/types/api";
 
 /**
@@ -62,6 +68,29 @@ function resolveApiBase(): string {
 
 const base = resolveApiBase();
 
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
+
+function getAuthToken(): string | null {
+  if (typeof sessionStorage === "undefined") return null;
+  return sessionStorage.getItem("e-inter.session");
+}
+
+function parseError(status: number, text: string): Error {
+  try {
+    const body = JSON.parse(text) as { error?: string };
+    if (body.error === "invalid_credentials") return new Error("Invalid username or password.");
+    if (body.error === "unauthorized") return new Error("Session expired. Please sign in again.");
+    if (body.error) return new Error(body.error.replace(/_/g, " "));
+  } catch {
+    /* raw text */
+  }
+  return new Error(text || `Request failed (${status})`);
+}
+
 /**
  * Relative `/api/v1/…` cannot be resolved by `fetch` on `file:` pages or opaque
  * origins (`location.origin === "null"`), which surfaces as WebKit’s
@@ -92,18 +121,31 @@ async function j<T>(path: string, init?: RequestInit): Promise<T> {
   if (init?.body != null && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
+  const token = getAuthToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
   const res = await fetch(url, {
     ...init,
     headers,
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || res.statusText);
+    if (res.status === 401 && path !== "/auth/login") {
+      unauthorizedHandler?.();
+    }
+    throw parseError(res.status, text);
   }
   return res.json() as Promise<T>;
 }
 
 export const api = {
+  login: (username: string, password: string) =>
+    j<{ token: string; username: string; displayName: string }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  me: () => j<{ username: string; displayName: string }>("/auth/me"),
   commandCenter: () => j<CommandCenterPayload>("/command-center"),
   policy: () => j<FleetPolicy>("/policy"),
   updatePolicy: (body: Partial<FleetPolicy>) =>
@@ -127,4 +169,17 @@ export const api = {
   assetLifecycle: () => j<{ updatedAt: string; items: AssetLifecycleStage[] }>("/analytics/asset-lifecycle"),
   drivers: () => j<{ updatedAt: string; items: DriverClassification[] }>("/analytics/driver-classification"),
   portfolioValuation: () => j<PortfolioValuationPayload>("/analytics/portfolio-valuation"),
+  canLive: (id: string) => j<CanLivePayload>(`/vehicles/${id}/can-live`),
+  cells: (id: string) => j<CellSnapshotPayload>(`/vehicles/${id}/cells`),
+  gpsHistory: (id: string, opts?: { max?: number; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    q.set("max", String(opts?.max ?? 1200));
+    if (opts?.from) q.set("from", opts.from);
+    if (opts?.to) q.set("to", opts.to);
+    return j<GpsHistoryPayload>(`/vehicles/${id}/gps-history?${q.toString()}`);
+  },
+  gpsMetrics: (id: string) => j<GpsMetrics>(`/vehicles/${id}/gps-metrics`),
+  dailyDistance: (id: string) => j<{ vehicleId: string; items: DailyDistancePoint[] }>(`/vehicles/${id}/daily-distance`),
+  tripDetail: (id: string) => j<TripLedgerRow>(`/vehicles/${id}/trip`),
+  trips: () => j<{ updatedAt: string; items: TripLedgerRow[] }>("/trips"),
 };

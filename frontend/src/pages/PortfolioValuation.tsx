@@ -82,7 +82,7 @@ export default function PortfolioValuation() {
     <div className="pb-20 lg:pb-0">
       <PageHeader
         title="Portfolio value & residual"
-        description="Enterprise snapshot for NBFCs and dry-lease lessors: indicative list price, model fair market value (FMV), and a 36-month-style residual per asset — all in INR. Figures are demo heuristics from odometer, SOH, lifecycle stage, and telemetry mode."
+        description="Enterprise snapshot for NBFCs and dry-lease lessors: model list prices for Ace / Zor Grand / Pro X, FMV from odometer and GPS utilisation. Pack SOH is unobservable on this file fleet and is not invented."
       />
 
       <Card className="mb-6 border-amber-200/80 bg-amber-50/40 p-4 text-sm leading-relaxed text-amber-950">
@@ -110,7 +110,7 @@ export default function PortfolioValuation() {
         />
         <Kpi
           label="Fleet quality"
-          value={`${e.avgSohPercent}% avg SOH`}
+          value={e.avgSohPercent == null ? "SOH unobservable" : `${e.avgSohPercent}% avg SOH`}
           hint={`Watch/retire share of FMV: ${Math.round(e.portfolioRiskShare * 100)}% — higher means more book in elevated lifecycle bands.`}
         />
       </div>
@@ -193,7 +193,9 @@ export default function PortfolioValuation() {
                   <td className="px-4 py-2.5 text-right tabular-nums">{inr.format(row.indicativeListPriceInr)}</td>
                   <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-brand">{inr.format(row.fairMarketValueInr)}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-ink">{inr.format(row.residualValueInr)}</td>
-                  <td className="px-4 py-2.5 text-center tabular-nums">{row.sohPercent}%</td>
+                  <td className="px-4 py-2.5 text-center tabular-nums">
+                    {row.sohPercent == null ? "n/a" : `${row.sohPercent}%`}
+                  </td>
                   <td className="px-4 py-2.5">
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ring-1 ${bandClass[row.valueBand]}`}>
                       {bandLabel[row.valueBand]}

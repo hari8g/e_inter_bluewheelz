@@ -1,0 +1,33 @@
+{
+  "profileId": "mahindra_zeo@2026-09-03",
+  "oemPlatform": "mahindra_zeo",
+  "assetClass": "micro_4w",
+  "sourceDocument": "Intellicar CAN Parameter Validation Report, Bosch, 2026-09-03",
+  "parameterCount": 13,
+  "signals": [
+    { "source": "odometer", "canonical": "veh.odometer_km", "unit": "km", "type": "number", "status": "validated", "keySource": "assumed",
+      "guards": { "min": 0, "max": 1000000, "monotonic": true, "maxJumpPerMinute": 3 } },
+    { "source": "soc", "canonical": "batt.soc_pct", "unit": "%", "type": "number", "status": "validated", "keySource": "confirmed",
+      "guards": { "min": 0, "max": 100, "maxRatePerMinute": 8 } },
+    { "source": "dte", "canonical": "batt.dte_km", "unit": "km", "type": "number", "status": "validated", "keySource": "assumed",
+      "guards": { "min": 0, "max": 2000 } },
+    { "source": "parking_brake", "canonical": "drv.parking_brake", "type": "boolean", "status": "validated", "keySource": "assumed" },
+    { "source": "indicators", "canonical": "body.indicator_left", "type": "bitflag", "bit": 0, "status": "validated", "keySource": "assumed" },
+    { "source": "indicators", "canonical": "body.indicator_right", "type": "bitflag", "bit": 1, "status": "validated", "keySource": "assumed" },
+    { "source": "headlight", "canonical": "body.headlight_low", "type": "boolean", "status": "validated", "keySource": "assumed" },
+    { "source": "acceleration", "canonical": "drv.accel_pedal_pct", "unit": "%", "type": "number", "status": "validated", "keySource": "assumed",
+      "guards": { "min": 0, "max": 100 } },
+    { "source": "brake_pedal", "canonical": "drv.brake_pedal", "type": "boolean", "status": "validated", "keySource": "confirmed" },
+    { "source": "eco_mode", "canonical": "mode.eco", "type": "boolean", "status": "validated", "keySource": "assumed" },
+    { "source": "power_mode", "canonical": "mode.power", "type": "boolean", "status": "validated", "keySource": "assumed" },
+    { "source": "gear_state", "canonical": "veh.gear_state", "type": "enum", "status": "validated", "keySource": "assumed",
+      "enumMap": { "0": "P", "1": "R", "2": "N", "3": "D" } },
+
+    { "source": "charging_status", "canonical": "chg.status", "type": "enum", "status": "pending", "keySource": "assumed",
+      "note": "Report 2026-09-03: 'Charging Parameters' PENDING validation",
+      "enumMap": { "0": "idle", "1": "ac", "2": "dc", "3": "fault" } },
+    { "source": "vehicle_speed", "canonical": "veh.speed_kph", "unit": "kph", "type": "number", "status": "pending", "keySource": "assumed",
+      "note": "Report 2026-09-03: PENDING validation",
+      "guards": { "min": 0, "max": 200 } }
+  ]
+}

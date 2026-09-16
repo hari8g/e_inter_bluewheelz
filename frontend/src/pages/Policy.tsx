@@ -73,11 +73,16 @@ export default function Policy() {
           <div className="grid gap-3 md:grid-cols-2">
             <Toggle checked={p.showMap} onChange={(v) => void persist({ ...p, showMap: v })} label="Operational map (live positions)" />
             <Toggle checked={p.showAssetStrip} onChange={(v) => void persist({ ...p, showAssetStrip: v })} label="Live asset strip (side list)" />
-            <Toggle checked={p.showSocStrip} onChange={(v) => void persist({ ...p, showSocStrip: v })} label="SOC & est. range in strip" />
-            <Toggle checked={p.showTripLedger} onChange={(v) => void persist({ ...p, showTripLedger: v })} label="Trip & energy ledger table" />
+            <Toggle checked={p.showSocStrip} onChange={(v) => void persist({ ...p, showSocStrip: v })} label="Trip-end SOC (report) bar in asset strip" />
+            <Toggle checked={p.showTripLedger} onChange={(v) => void persist({ ...p, showTripLedger: v })} label="Trip & GPS ledger table" />
             <Toggle checked={p.showImmobilise} onChange={(v) => void persist({ ...p, showImmobilise: v })} label="Immobilise / release buttons" />
-            <Toggle checked={p.highlightLowSoc} onChange={(v) => void persist({ ...p, highlightLowSoc: v })} label="Highlight low-SOC against policy threshold" />
+            <Toggle checked={p.highlightLowSoc} onChange={(v) => void persist({ ...p, highlightLowSoc: v })} label="Highlight trip-end SOC (report) below threshold" />
             <Toggle checked={p.highlightStaleGps} onChange={(v) => void persist({ ...p, highlightStaleGps: v })} label="Highlight assets past GPS freshness SLA" />
+            <Toggle
+              checked={p.highlightGpsReportMismatch ?? false}
+              onChange={(v) => void persist({ ...p, highlightGpsReportMismatch: v })}
+              label="Highlight GPS path vs report-distance mismatch"
+            />
           </div>
         </section>
         <section className="rounded-xl border border-line bg-surface-page p-5">
@@ -107,7 +112,7 @@ export default function Policy() {
                 <span className="text-xs text-ink-muted">minutes</span>
               </div>
             </Field>
-            <Field label="Low SOC alert threshold">
+            <Field label="Trip-end SOC (report) alert">
               <div className="flex items-center gap-2">
                 <Input
                   type="number"
@@ -116,7 +121,20 @@ export default function Policy() {
                   min={5}
                   max={80}
                 />
-                <span className="text-xs text-ink-muted">% pack</span>
+                <span className="text-xs text-ink-muted">% Endfl</span>
+              </div>
+            </Field>
+            <Field label="Device battery alert">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  step="0.1"
+                  value={p.deviceBatteryAlertVolts ?? 3.9}
+                  onChange={(e) => setP({ ...p, deviceBatteryAlertVolts: Number(e.target.value) })}
+                  min={2}
+                  max={6}
+                />
+                <span className="text-xs text-ink-muted">volts</span>
               </div>
             </Field>
           </div>
@@ -127,7 +145,7 @@ export default function Policy() {
               checked={p.geofenceBreachAlerts}
               onChange={(e) => void persist({ ...p, geofenceBreachAlerts: e.target.checked })}
             />
-            Geofence breach alerts <span className="text-ink-muted">(when zones are configured downstream)</span>
+            Geofence disks (Bengaluru depot / corridor) on the operations map
           </label>
           <div className="mt-4 flex justify-end">
             <Button disabled={saving} onClick={() => void persist(p)}>

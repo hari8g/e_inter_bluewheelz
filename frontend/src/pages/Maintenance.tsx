@@ -32,6 +32,12 @@ export default function Maintenance() {
     refresh().catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    const v = vehicles.find((x) => x.id === vehicleId);
+    if (v?.trip?.endOdoKm != null) setOdo(String(Math.round(v.trip.endOdoKm)));
+    else if (v) setOdo(String(Math.round(v.odometerKm)));
+  }, [vehicleId, vehicles]);
+
   const vById = useMemo(() => Object.fromEntries(vehicles.map((x) => [x.id, x])), [vehicles]);
 
   async function addItem(e: React.FormEvent) {
@@ -66,7 +72,7 @@ export default function Maintenance() {
     <div className="pb-20 lg:pb-0">
       <PageHeader
         title="Maintenance & service"
-        description="Plan work by vehicle, track due dates and vendor visits, and close items when service is complete. CAN-backed assets surface predictive rows alongside calendar work."
+        description="Suggestions from GPS + trip ingest: Ace major service from odo, high idle investigation, GPS–report mismatch odometer audit. Prefill due odo from trip-end odometer. Predictive CAN is not a default work type for GPS-only vehicles."
       />
       <Callout icon={Wrench}>
         <span className="font-semibold text-ink">Operator note:</span> this is a lightweight work list for the command
@@ -88,9 +94,10 @@ export default function Maintenance() {
             <Field label="Work type">
               <Select value={workType} onChange={(e) => setWorkType(e.target.value)}>
                 <option>Scheduled service</option>
-                <option>Predictive (CAN)</option>
+                <option>Inspection</option>
+                <option>Idling investigation</option>
+                <option>Odometer audit</option>
                 <option>Tyre & brake</option>
-                <option>Investigation</option>
               </Select>
             </Field>
             <Field label="Title" hint="Short operator-facing label.">

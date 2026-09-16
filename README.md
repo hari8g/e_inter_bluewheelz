@@ -37,6 +37,37 @@ npm install
 npm run dev
 ```
 
+Default is **demo mode** (in-memory Bengaluru seed, plates `KA01DM1001`–`1010`).
+
+### Live Intellicar path
+
+Bosch operates the Kafka cluster; Intellicar **produces** into `intellicar.telemetry.raw.v1`. This repo consumes, normalizes, and serves the SPA.
+
+```bash
+# 1. Local brokers + Postgres
+docker compose up -d
+
+# 2. Backend live
+cd backend
+cp .env.example .env   # then edit
+# DEMO_MODE=0
+# BOOTSTRAP_PILOT=1
+# DATABASE_URL=postgres://einter:einter@localhost:5432/e_inter
+# KAFKA_BOOTSTRAP=localhost:9092
+# KAFKA_SSL=false
+# KAFKA_SASL_MECHANISM=
+# ADMIN_API_TOKEN=change-me
+# ALLOWED_ORIGINS=http://localhost:5173
+npm run migrate:dev && npm run seed:pilot
+npm run dev            # API — migrates on boot when DEMO_MODE≠1
+npm run ingest:dev     # worker — another terminal
+npm run produce:sample # optional local fixture
+```
+
+Point Intellicar at your real brokers (Confluent Cloud / MSK). Fill `KAFKA_*` from the exposure package. Set `ALLOWED_ORIGINS` to the Vercel host before production CORS will allow the SPA.
+
+On Render, apply `render.yaml` (API + ingest worker + Postgres). Set Kafka secrets and `ALLOWED_ORIGINS`. `BOOTSTRAP_PILOT=1` registers `KA01EV1001`–`1005` on API boot.
+
 ### Frontend (Vite on port `5173`, proxies `/api` → backend)
 
 ```bash

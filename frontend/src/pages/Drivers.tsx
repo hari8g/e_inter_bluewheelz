@@ -42,9 +42,9 @@ function priorityPlain(p: DriverClassification["prognosis"]["priority"]): { labe
 function radarRows(d: DriverClassification) {
   return [
     { subject: "Safety", score: d.safetyScore },
-    { subject: "Smooth riding", score: d.profile.smoothness },
-    { subject: "Easy on battery", score: d.profile.ecoDrive },
-    { subject: "Follows rules", score: d.profile.compliance },
+    { subject: "Smoothness (GPS harsh)", score: d.profile.smoothness },
+    { subject: "Eco / mileage", score: d.profile.ecoDrive },
+    { subject: "Idle compliance", score: d.profile.compliance },
     { subject: "Alertness", score: 100 - d.profile.fatigueRisk },
   ];
 }
@@ -65,8 +65,8 @@ export default function Drivers() {
   return (
     <div className="pb-20 lg:pb-0">
       <PageHeader
-        title="Drivers — safety and style"
-        description="Each card shows five simple scores (0–100, higher is better except where noted), a spider chart for a quick shape, and a line of weekly safety scores from 0 so you can see real ups and downs."
+        title="Vehicle trip quality"
+        description="No driver identity in these files. Primary metric is trip.score. Smoothness uses coarse GPS harsh counts (~30 s sampling). Eco uses mileage / SOC bookend rate when present. Compliance is idle ratio."
       />
       <div className="grid gap-6">
         {items.map((d) => {
@@ -76,8 +76,16 @@ export default function Drivers() {
             <Card key={d.driverId} className="overflow-hidden p-0">
               <div className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-5 py-4">
                 <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Rider name (demo)</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+                    Vehicle (no driver identity)
+                  </div>
                   <div className="text-lg font-semibold text-ink">{d.label}</div>
+                  {d.tripScore != null ? (
+                    <div className="text-xs text-ink-muted">Trip score {d.tripScore}</div>
+                  ) : null}
+                  {d.eventSource && d.eventSource !== "demo" ? (
+                    <div className="mt-1 text-[11px] font-medium text-ink-muted">Event source: {d.eventSource}</div>
+                  ) : null}
                   <p className="mt-1 max-w-xl text-sm text-ink-muted">{bandInPlainWords(d.band)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

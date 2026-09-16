@@ -1,0 +1,27 @@
+{
+  "profileId": "switch_ev@2026-09-03",
+  "oemPlatform": "switch_ev",
+  "assetClass": "bus",
+  "sourceDocument": "Intellicar CAN Parameter Validation Report, Bosch, 2026-09-03",
+  "parameterCount": 10,
+  "signals": [
+    { "source": "soc", "canonical": "batt.soc_pct", "unit": "%", "type": "number", "status": "validated", "keySource": "confirmed",
+      "guards": { "min": 0, "max": 100, "maxRatePerMinute": 8 } },
+    { "source": "dte", "canonical": "batt.dte_km", "unit": "km", "type": "number", "status": "validated", "keySource": "assumed",
+      "guards": { "min": 0, "max": 2000 } },
+    { "source": "odometer", "canonical": "veh.odometer_km", "unit": "km", "type": "number", "status": "validated", "keySource": "assumed",
+      "guards": { "min": 0, "max": 2000000, "monotonic": true, "maxJumpPerMinute": 3 } },
+    { "source": "vehicle_speed", "canonical": "veh.speed_kph", "unit": "kph", "type": "number", "status": "validated", "keySource": "assumed",
+      "guards": { "min": 0, "max": 150 } },
+    { "source": "charging_status", "canonical": "chg.status", "type": "enum", "status": "validated", "keySource": "assumed",
+      "enumMap": { "0": "idle", "1": "ac", "2": "dc", "3": "fault" } },
+    { "source": "gear", "canonical": "veh.gear_state", "type": "enum", "status": "validated", "keySource": "assumed",
+      "enumMap": { "0": "P", "1": "R", "2": "N", "3": "D" } },
+    { "source": "acceleration_pedal", "canonical": "drv.accel_pedal_pct", "unit": "%", "type": "number", "status": "validated", "keySource": "assumed",
+      "guards": { "min": 0, "max": 100 } },
+    { "source": "brake_pedal", "canonical": "drv.brake_pedal", "type": "boolean", "status": "validated", "keySource": "confirmed" },
+    { "source": "handbrake", "canonical": "drv.parking_brake", "type": "boolean", "status": "validated", "keySource": "assumed" },
+    { "source": "trip_a", "canonical": "veh.trip_distance_km", "unit": "km", "type": "number", "status": "validated", "keySource": "assumed",
+      "guards": { "min": 0, "max": 100000, "rollover": true } }
+  ]
+}

@@ -1,5 +1,8 @@
 export type TelemetryMode = "gps_only" | "can_gps";
 export type VehicleStatus = "active" | "charging" | "idle" | "offline";
+export type OemPlatform = "mahindra_zeo" | "tata_ace_ev" | "switch_ev" | "eicher_ev" | "file_gps";
+export type SohMethod = "coulomb_counted" | "ocv_incremental" | "unavailable" | "demo";
+export type DriverEventSource = "can_measured" | "derived_speed" | "unavailable" | "demo";
 
 export interface Position {
   lat: number;
@@ -8,12 +11,138 @@ export interface Position {
 }
 
 export interface CanSnapshot {
-  motorTempC: number;
-  packVoltageV: number;
-  minCellV: number;
-  maxCellV: number;
-  bmsHealthScore: number;
+  motorTempC: number | null;
+  packVoltageV: number | null;
+  minCellV: number | null;
+  maxCellV: number | null;
+  bmsHealthScore: number | null;
+  cellDeltaMv?: number | null;
   capturedAt: string;
+}
+
+export interface GpsSnapshot {
+  speedKph: number | null;
+  deviceBatteryV: number | null;
+  auxBatteryV: number | null;
+  ignition: boolean | null;
+  capturedAt: string;
+}
+
+export interface TripSnapshot {
+  distanceKm: number | null;
+  durationMin: number | null;
+  avgSpeedKph: number | null;
+  startSocPct: number | null;
+  endSocPct: number | null;
+  startOdoKm: number | null;
+  endOdoKm: number | null;
+  energyUsed: number | null;
+  efficiency: number | null;
+  idleMin: number | null;
+  acIdleMin: number | null;
+  score: number | null;
+  chargingMin: number | null;
+  startDteKm: number | null;
+  endDteKm: number | null;
+  startLat: number | null;
+  startLng: number | null;
+  endLat: number | null;
+  endLng: number | null;
+  startAt: string | null;
+  endAt: string | null;
+  fuelType: string | null;
+  operator: string | null;
+  model: string | null;
+}
+
+export interface TripLedgerRow {
+  vehicleId: string;
+  registration: string;
+  model: string;
+  operator: string;
+  startAt: string | null;
+  endAt: string | null;
+  distanceKm: number | null;
+  durationMin: number | null;
+  avgSpeedKph: number | null;
+  startSocPct: number | null;
+  endSocPct: number | null;
+  startOdoKm: number | null;
+  endOdoKm: number | null;
+  energyUsed: number | null;
+  gpsDistanceKm: number | null;
+  efficiency?: number | null;
+  idleMin?: number | null;
+  acIdleMin?: number | null;
+  score?: number | null;
+  chargingMin?: number | null;
+  startDteKm?: number | null;
+  endDteKm?: number | null;
+  startLat?: number | null;
+  startLng?: number | null;
+  endLat?: number | null;
+  endLng?: number | null;
+  fuelType?: string | null;
+  distanceDeltaKm?: number | null;
+}
+
+export interface GpsStop {
+  startedAt: string;
+  endedAt: string;
+  dwellMin: number;
+  lat: number;
+  lng: number;
+}
+
+export interface DailyDistancePoint {
+  day: string;
+  km: number;
+  ignOnPct: number;
+  maxSpeedKph: number;
+  harshTotal: number;
+}
+
+export interface GpsMetrics {
+  vehicleId: string;
+  registration: string;
+  pathKm: number;
+  reportKm: number | null;
+  distanceDeltaKm: number | null;
+  maxSpeedKph: number;
+  ignOnPct: number;
+  movingPct: number;
+  idleGpsMin: number;
+  stopCount: number;
+  harshAccel: number;
+  harshBrake: number;
+  peakAccelMps2: number;
+  peakBrakeMps2: number;
+  medianGapSec: number | null;
+  coveragePct: number;
+  firstFixAt: string | null;
+  lastFixAt: string | null;
+  pointCount: number;
+  deviceBatteryV: number | null;
+  auxBatteryV: number | null;
+  deviceMinV: number | null;
+  deviceMaxV: number | null;
+  auxMinV: number | null;
+  auxMaxV: number | null;
+  lowDeviceV: boolean;
+  lowAuxV: boolean;
+  geofences: string[];
+  stops: GpsStop[];
+}
+
+export interface GpsMetricsLite {
+  pathKm: number;
+  reportKm: number | null;
+  distanceDeltaKm: number | null;
+  maxSpeedKph: number;
+  ignOnPct: number;
+  tripScore: number | null;
+  stopCount: number;
+  idleGpsMin: number;
 }
 
 export interface Vehicle {
@@ -31,6 +160,14 @@ export interface Vehicle {
   position: Position;
   deviceId: string | null;
   can?: CanSnapshot;
+  oemPlatform?: OemPlatform;
+  sohMethod?: SohMethod;
+  joinGapSeconds?: number | null;
+  coverage24hPct?: number | null;
+  gps?: GpsSnapshot;
+  trip?: TripSnapshot;
+  track?: { lat: number; lng: number }[];
+  gpsMetrics?: GpsMetricsLite;
 }
 
 export interface GpsDevice {
@@ -40,6 +177,10 @@ export interface GpsDevice {
   type: "GPS" | "CAN_GATEWAY";
   lastSeenAt: string;
   pairedVehicleId: string | null;
+  pointCount?: number;
+  firstFixAt?: string | null;
+  lastDeviceBatteryV?: number | null;
+  lastAuxBatteryV?: number | null;
 }
 
 export type MaintenanceStatus = "open" | "in_progress" | "done";
@@ -69,9 +210,12 @@ export interface FleetPolicy {
   stalePositionMinutes: number;
   lowSocAlertPercent: number;
   geofenceBreachAlerts: boolean;
+  deviceBatteryAlertVolts?: number;
+  highlightGpsReportMismatch?: boolean;
 }
 
 export interface CommandCenterPayload {
+  mode?: "demo" | "live";
   fleetTotal: number;
   reporting: number;
   noLink: number;
@@ -81,6 +225,11 @@ export interface CommandCenterPayload {
   energyLedgerKwh: number;
   policy: FleetPolicy;
   vehicles: Vehicle[];
+  trips?: TripLedgerRow[];
+  dataSource?: string;
+  reportDistanceKm?: number;
+  avgSocSampleCount?: number;
+  rangePoolAvailable?: boolean;
 }
 
 export interface BatteryHeuristics {
@@ -112,9 +261,24 @@ export interface BatteryDeterioration {
 export interface BatteryHealthPoint {
   vehicleId: string;
   registration: string;
-  sohPercent: number;
-  cycleEstimate: number;
-  imbalanceMv: number;
+  sohPercent: number | null;
+  sohMethod?: SohMethod;
+  tripStartSocPct?: number | null;
+  tripEndSocPct?: number | null;
+  tripEnergyUsed?: number | null;
+  tripEfficiency?: number | null;
+  tripChargingMin?: number | null;
+  tripStartDteKm?: number | null;
+  tripEndDteKm?: number | null;
+  gpsDistanceKm?: number | null;
+  kmPerSocPoint?: number | null;
+  deviceMinV?: number | null;
+  deviceMaxV?: number | null;
+  auxMinV?: number | null;
+  auxMaxV?: number | null;
+  cycleEstimate: number | null;
+  imbalanceMv: number | null;
+  lastEstimateAt?: string | null;
   trend: "improving" | "stable" | "degrading";
   sohHistory: { period: string; soh: number }[];
   sohForecast: { period: string; soh: number }[];
@@ -132,10 +296,10 @@ export interface BatteryHealthPoint {
 
 export interface AssetLifecycleHeuristics {
   telemetryMode: TelemetryMode;
-  canObservability: "full" | "gps_only";
+  canObservability: "full" | "partial" | "gps_only";
   kmToNextMajorService: number;
   dutyCycleIndex: number;
-  thermalStressIndex: number;
+  thermalStressIndex: number | null;
   depthOfDischargeScore: number;
   calendarAgeMonths: number;
   reliabilityIndex: number;
@@ -178,7 +342,9 @@ export interface PortfolioValuationItem {
   model: string;
   telemetryMode: TelemetryMode;
   odometerKm: number;
-  sohPercent: number;
+  sohPercent: number | null;
+  sohObservable?: boolean;
+  valuationConfidence?: "high" | "medium" | "low";
   indicativeListPriceInr: number;
   fairMarketValueInr: number;
   residualValueInr: number;
@@ -191,7 +357,7 @@ export interface PortfolioValuationEnterprise {
   totalIndicativeListInr: number;
   totalFairMarketValueInr: number;
   totalResidualValueInr: number;
-  avgSohPercent: number;
+  avgSohPercent: number | null;
   portfolioRiskShare: number;
 }
 
@@ -206,11 +372,15 @@ export interface PortfolioValuationPayload {
 
 export interface DriverClassification {
   driverId: string;
+  vehicleId?: string;
+  eventSource?: DriverEventSource;
   label: string;
   safetyScore: number;
   energyEfficiencyPercentile: number;
   harshEvents7d: number;
   band: "A" | "B" | "C";
+  tripScore?: number | null;
+  idleRatio?: number | null;
   profile: {
     smoothness: number;
     ecoDrive: number;
@@ -224,4 +394,68 @@ export interface DriverClassification {
     priority: "maintain" | "coach" | "intervene";
     reviewBy: string;
   };
+}
+
+export interface CanLiveSignal {
+  id: string;
+  label: string;
+  unit: string;
+  domain: string;
+  domainLabel: string;
+  value: unknown;
+  quality: string;
+}
+
+export interface CanLivePayload {
+  vehicleId: string;
+  registration: string;
+  capturedAt: string | null;
+  freshnessSeconds: number | null;
+  signals: CanLiveSignal[];
+  position: { lat: number | null; lng: number | null; gpsSpeedKph: number | null; joinGapSeconds: number | null } | null;
+  observability: {
+    oemPlatform: OemPlatform;
+    signalProfileId: string;
+    availableSignals: string[];
+    pendingSignals: string[];
+    unavailableSignals: string[];
+    lastFrameAt: string | null;
+    coverage24hPct: number;
+  };
+  trip?: TripSnapshot | null;
+}
+
+export interface GpsHistoryPoint {
+  t: string;
+  lat: number;
+  lng: number;
+  speedKph: number;
+  deviceBatteryV: number | null;
+  auxBatteryV: number | null;
+  ignition: boolean;
+}
+
+export interface GpsHistoryPayload {
+  vehicleId: string;
+  registration: string;
+  from: string;
+  to: string;
+  count: number;
+  points: GpsHistoryPoint[];
+}
+
+export interface CellSnapshotPayload {
+  vehicleId: string;
+  available: boolean;
+  reason?: string;
+  capturedAt?: string;
+  cellCount?: number;
+  tempSensorCount?: number;
+  cellVoltagesV: number[];
+  cellTempsC: number[];
+  cellVMaxV?: number;
+  cellVMinV?: number;
+  cellDeltaMv?: number;
+  cellTempMaxC?: number | null;
+  cellTempMinC?: number | null;
 }

@@ -42,7 +42,15 @@ function confidenceChip(c: AssetLifecycleStage["heuristics"]["dataConfidence"]) 
   return "bg-slate-100 text-slate-800 ring-slate-200";
 }
 
-function HeuristicBar({ label, value, hint }: { label: string; value: number; hint?: string }) {
+function HeuristicBar({ label, value, hint }: { label: string; value: number | null; hint?: string }) {
+  if (value == null) {
+    return (
+      <div className="rounded-lg border border-dashed border-line bg-white px-3 py-2.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-ink-muted">{label}</div>
+        <p className="mt-1 text-[11px] text-ink-muted">{hint ?? "Not measured on GPS-only traces."}</p>
+      </div>
+    );
+  }
   return (
     <div className="rounded-lg border border-line bg-white px-3 py-2.5 shadow-sm">
       <div className="flex items-baseline justify-between gap-2">
@@ -83,8 +91,8 @@ export default function AssetLifecycle() {
   return (
     <div className="pb-20 lg:pb-0">
       <PageHeader
-        title="Asset lifecycle management"
-        description="Each vehicle card opens with an operator diagnosis (what it means and what to do), then service dates, wear chart, and numeric heuristics for reference."
+        title="Asset lifecycle — odometer and duty"
+        description="Odometer from trip-end odo. Duty is GPS ign-on % and moving time. Service windows follow odo gates. Thermal stress is omitted on GPS-only assets."
       />
 
       <Card className="mb-8 p-5">
@@ -286,7 +294,15 @@ export default function AssetLifecycle() {
                   <HeuristicBar
                     label="Thermal stress index"
                     value={H.thermalStressIndex}
-                    hint={H.canObservability === "full" ? "From CAN motor temp." : "Inferred (no CAN thermal stream)."}
+                    hint={
+                      H.thermalStressIndex == null
+                        ? "Null — GPS-only files have no pack thermal stream."
+                        : H.canObservability === "full"
+                        ? "From measured pack temperature."
+                        : H.canObservability === "partial"
+                          ? "Not exposed on this OEM platform."
+                          : "Inferred (no CAN thermal stream)."
+                    }
                   />
                   <HeuristicBar
                     label="Depth-of-discharge score"

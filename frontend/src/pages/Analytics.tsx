@@ -1,4 +1,4 @@
-import { BarChart3, BatteryCharging, IndianRupee, Route, Shield } from "lucide-react";
+import { BarChart3, BatteryCharging, IndianRupee, Radio, Route, Shield } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Area, AreaChart, ResponsiveContainer, Tooltip } from "recharts";
@@ -7,7 +7,7 @@ import { chart, tooltipProps } from "@/lib/chartTheme";
 import { PageHeader } from "@/layout/AppShell";
 import { Card } from "@/ui/Card";
 
-type Summary = { fmvLakh: number; degrading: number; bandC: number };
+type Summary = { fmvLakh: number; gpsKm: number; tripScore: number };
 
 function Spark({ data, color }: { data: { v: number }[]; color: string }) {
   const gid = useId().replace(/:/g, "");
@@ -38,44 +38,59 @@ function Spark({ data, color }: { data: { v: number }[]; color: string }) {
 
 export default function Analytics() {
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [fleetSohSpark, setFleetSohSpark] = useState<{ v: number }[]>([]);
+  const [kmSpark, setKmSpark] = useState<{ v: number }[]>([]);
+  const [scoreSpark, setScoreSpark] = useState<{ v: number }[]>([]);
   const [wearSpark, setWearSpark] = useState<{ v: number }[]>([]);
   const [driverSpark, setDriverSpark] = useState<{ v: number }[]>([]);
 
   useEffect(() => {
     let alive = true;
-    Promise.all([api.portfolioValuation(), api.batteryHealth(), api.drivers(), api.assetLifecycle()])
-      .then(([pv, bat, drv, life]) => {
+    Promise.all([api.portfolioValuation(), api.trips(), api.drivers(), api.assetLifecycle(), api.vehicles()])
+      .then(async ([pv, trips, drv, life, vehicles]) => {
         if (!alive) return;
+        const scores = trips.items.map((t) => t.score).filter((n): n is number => n != null);
         setSummary({
           fmvLakh: Math.round(pv.enterprise.totalFairMarketValueInr / 100_000) / 10,
-          degrading: bat.items.filter((b) => b.trend === "degrading").length,
-          bandC: drv.items.filter((d) => d.band === "C").length,
+          gpsKm: Math.round(trips.items.reduce((s, t) => s + (t.gpsDistanceKm ?? 0), 0)),
+          tripScore: scores.length ? Math.round(scores.reduce((s, n) => s + n, 0) / scores.length) : 0,
         });
-        const hist = bat.items[0]?.sohHistory ?? [];
-        setFleetSohSpark(hist.slice(-8).map((h) => ({ v: h.soh })));
+        setScoreSpark(trips.items.map((t) => ({ v: t.score ?? 0 })));
         const wear = life.items[0]?.wearSeries ?? [];
         setWearSpark(wear.map((w) => ({ v: w.wearIndex })));
         const sc = drv.items[0]?.safetyHistory ?? [];
         setDriverSpark(sc.map((s) => ({ v: s.score })));
+        if (vehicles[0]) {
+          const daily = await api.dailyDistance(vehicles[0].id);
+          if (alive) setKmSpark(daily.items.map((d) => ({ v: d.km })));
+        }
       })
-      .catch(() => alive && setSummary({ fmvLakh: 0, degrading: 0, bandC: 0 }));
+      .catch(() => alive && setSummary({ fmvLakh: 0, gpsKm: 0, tripScore: 0 }));
     return () => {
       alive = false;
     };
   }, []);
 
-  const sparkSafe = useMemo(() => (fleetSohSpark.length ? fleetSohSpark : [{ v: 88 }]), [fleetSohSpark]);
+  const sparkSafe = useMemo(() => (kmSpark.length ? kmSpark : [{ v: 12 }]), [kmSpark]);
 
   const tiles = [
     {
-      to: "/battery-health",
-      title: "Battery health",
-      operatorLine: "Which packs are losing SOH fastest, and why?",
-      desc: "Fleet SOH ranking, 12-month history blend, fade attribution (calendar / cycles / imbalance / thermal), and pack stress meters. Use before scheduling swaps or deep diagnostics.",
-      icon: BatteryCharging,
-      stat: summary ? `${summary.degrading} vehicle(s) on a degrading SOH trend` : "—",
+      to: "/can-telemetry",
+      title: "Trip and GPS workspace",
+      operatorLine: "What did the traces actually measure this week?",
+      desc: "Workbook fields, GPS path vs report km, ignition and 12V charts, stop clusters, and playback. Start here before any CAN-shaped screen.",
+      icon: Radio,
+      stat: summary ? `${summary.gpsKm} km GPS path · mean trip score ${summary.tripScore || "—"}` : "—",
       spark: sparkSafe,
+      sparkColor: chart.brand,
+    },
+    {
+      to: "/battery-health",
+      title: "Trip energy & 12V",
+      operatorLine: "SOC bookends, report energy, accessory batteries — not pack SOH.",
+      desc: "Ranking by trip-end SOC (nulls last), GPS path km, mileage, and 12V/device min-max. Capacity SOH % is not invented from these files.",
+      icon: BatteryCharging,
+      stat: summary ? "SOH unobservable on this fleet" : "—",
+      spark: scoreSpark.length ? scoreSpark : [{ v: 70 }],
       sparkColor: chart.brand,
     },
     {
@@ -90,11 +105,11 @@ export default function Analytics() {
     },
     {
       to: "/drivers",
-      title: "Drivers",
-      operatorLine: "Who needs a safety chat or extra coaching?",
-      desc: "Simple scores and weekly safety trend (0–100). Bands A/B/C show who is on track and who needs help first.",
+      title: "Vehicle trip quality",
+      operatorLine: "Which GPS traces look harsh, idle-heavy, or low-scoring?",
+      desc: "Trip score plus coarse GPS harsh (~30 s). No named drivers. Daily GPS harsh / distance is the history, not empty arrays.",
       icon: Shield,
-      stat: summary ? `${summary.bandC} driver(s) currently in band C (highest watch)` : "—",
+      stat: summary ? `Mean trip score ${summary.tripScore || "—"}` : "—",
       spark: driverSpark.length ? driverSpark : [{ v: 75 }],
       sparkColor: chart.accent,
     },
@@ -138,10 +153,11 @@ export default function Analytics() {
       <Card className="mb-6 border-brand-border/60 bg-brand-muted/25 p-4 text-sm leading-relaxed text-ink">
         <div className="text-xs font-bold uppercase tracking-wide text-brand">How to use this page</div>
         <ul className="mt-2 list-inside list-disc space-y-1 text-ink-muted marker:text-brand">
-          <li>Start with <strong className="text-ink">Battery health</strong> if you are triaging pack risk or SOH complaints.</li>
-          <li>Use <strong className="text-ink">Asset lifecycle</strong> for odometer-based service planning and end-of-life watch.</li>
-          <li>Open <strong className="text-ink">Drivers</strong> for coaching queues (bands and weekly safety line).</li>
-          <li>Open <strong className="text-ink">Portfolio value</strong> for NBFC / lessor FMV and residual snapshot.</li>
+          <li>Start with <strong className="text-ink">Trip and GPS workspace</strong> for the measured traces and workbook.</li>
+          <li>Use <strong className="text-ink">Trip energy &amp; 12V</strong> for SOC bookends and accessory batteries — not pack SOH.</li>
+          <li>Use <strong className="text-ink">Asset lifecycle</strong> for odometer-based service planning.</li>
+          <li>Open <strong className="text-ink">Vehicle trip quality</strong> for trip score and coarse GPS harsh.</li>
+          <li>Open <strong className="text-ink">Portfolio value</strong> for NBFC / lessor FMV (SOH unobservable).</li>
         </ul>
       </Card>
 

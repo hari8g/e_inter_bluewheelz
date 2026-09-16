@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "@/api/client";
+import { SignalGate } from "@/components/SignalGate";
 import { chart, cartesianGrid, axisProps, tooltipProps } from "@/lib/chartTheme";
 import { PageHeader } from "@/layout/AppShell";
 import { Card } from "@/ui/Card";
@@ -55,11 +56,12 @@ function mergeObservedForecast(b: BatteryHealthPoint): SohPoint[] {
 }
 
 function fleetAverageHistory(items: BatteryHealthPoint[]) {
-  if (!items.length || !items[0]?.sohHistory.length) return [];
-  const len = items[0].sohHistory.length;
+  const withHist = items.filter((b) => b.sohPercent != null && b.sohHistory.length);
+  if (!withHist.length || !withHist[0]?.sohHistory.length) return [];
+  const len = withHist[0].sohHistory.length;
   return Array.from({ length: len }, (_, i) => ({
-    label: items[0].sohHistory[i]!.period,
-    soh: Math.round((items.reduce((s, b) => s + b.sohHistory[i]!.soh, 0) / items.length) * 10) / 10,
+    label: withHist[0].sohHistory[i]!.period,
+    soh: Math.round((withHist.reduce((s, b) => s + (b.sohHistory[i]?.soh ?? 0), 0) / withHist.length) * 10) / 10,
   }));
 }
 
@@ -168,7 +170,8 @@ export default function BatteryHealth() {
   const fleetBars = useMemo(
     () =>
       [...items]
-        .sort((a, b) => b.sohPercent - a.sohPercent)
+        .filter((b) => b.sohPercent != null)
+        .sort((a, b) => (b.sohPercent ?? 0) - (a.sohPercent ?? 0))
         .map((b) => ({
           reg: b.registration.length > 13 ? `${b.registration.slice(0, 12)}…` : b.registration,
           soh: b.sohPercent,
@@ -177,9 +180,23 @@ export default function BatteryHealth() {
     [items],
   );
 
+  const gpsEnergyMode = items.length > 0 && items.every((b) => b.sohMethod === "unavailable");
+  const tripRank = useMemo(
+    () =>
+      [...items].sort((a, b) => {
+        if (a.tripEndSocPct == null && b.tripEndSocPct == null) return (b.gpsDistanceKm ?? 0) - (a.gpsDistanceKm ?? 0);
+        if (a.tripEndSocPct == null) return 1;
+        if (b.tripEndSocPct == null) return -1;
+        return (b.tripEndSocPct ?? 0) - (a.tripEndSocPct ?? 0);
+      }),
+    [items],
+  );
+
   const stackChartData = useMemo(
     () =>
-      items.map((b) => {
+      items
+        .filter((b) => b.sohMethod !== "unavailable")
+        .map((b) => {
         const { calendarAgeing, cyclicElectrical, cellImbalance, thermalElectrical } = b.deterioration.breakdownPastFade;
         return {
           reg: b.registration.length > 11 ? `${b.registration.slice(0, 10)}…` : b.registration,
@@ -195,8 +212,12 @@ export default function BatteryHealth() {
   return (
     <div className="pb-20 lg:pb-0">
       <PageHeader
-        title="Battery health monitoring"
-        description="SOH trajectories, attributed fade drivers, and stress indices are aligned to telemetry mode (CAN vs GPS). Stacked bands explain trailing 12-month loss; dashed forecast shows model inertia if usage stays similar."
+        title="Trip energy and 12V"
+        description={
+          gpsEnergyMode
+            ? "These files have no pack SOH %. Ranking uses trip-end SOC (nulls last), GPS path km, report energy, and mileage. 12V / device batteries are accessory health, not pack SOH."
+            : "SOH trajectories, attributed fade drivers, and stress indices are aligned to telemetry mode (CAN vs GPS)."
+        }
       />
       <div className="mb-6 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
         <span>
@@ -206,11 +227,48 @@ export default function BatteryHealth() {
             : "—"}{" "}
           · auto-refresh ~2 min
         </span>
+        {gpsEnergyMode ? (
+          <span className="rounded-full bg-brand-muted/60 px-2 py-1 font-medium text-brand ring-1 ring-brand-border">
+            SOH % not in these files
+          </span>
+        ) : (
         <span className="rounded-full bg-brand-muted/60 px-2 py-1 font-medium text-brand ring-1 ring-brand-border">
           Prognosis threshold · SOH {items[0]?.prognosis.thresholdSoh ?? 80}%
         </span>
+        )}
       </div>
 
+      {gpsEnergyMode ? (
+        <Card className="mb-8 overflow-x-auto p-0">
+          <div className="border-b border-line px-5 py-3 text-sm font-semibold text-ink">
+            Ranking · trip-end SOC, GPS path, report energy, mileage
+          </div>
+          <table className="min-w-full text-left text-sm">
+            <thead className="border-b border-line bg-surface-page text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+              <tr>
+                <th className="px-5 py-3">Vehicle</th>
+                <th className="px-5 py-3">Trip-end SOC</th>
+                <th className="px-5 py-3">GPS path</th>
+                <th className="px-5 py-3">Energy used</th>
+                <th className="px-5 py-3">Mileage</th>
+                <th className="px-5 py-3">km / SOC pt</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {tripRank.map((b) => (
+                <tr key={b.vehicleId}>
+                  <td className="px-5 py-3 font-semibold text-ink">{b.registration}</td>
+                  <td className="px-5 py-3 tabular-nums">{b.tripEndSocPct != null ? `${b.tripEndSocPct}%` : "—"}</td>
+                  <td className="px-5 py-3 tabular-nums">{b.gpsDistanceKm != null ? `${b.gpsDistanceKm} km` : "—"}</td>
+                  <td className="px-5 py-3 tabular-nums">{b.tripEnergyUsed ?? "—"}</td>
+                  <td className="px-5 py-3 tabular-nums">{b.tripEfficiency ?? "—"}</td>
+                  <td className="px-5 py-3 tabular-nums">{b.kmPerSocPoint ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+      ) : (
       <div className="mb-8 grid gap-6 lg:grid-cols-2">
         <Card className="p-5">
           <div className="mb-4">
@@ -266,6 +324,7 @@ export default function BatteryHealth() {
           </div>
         </Card>
       </div>
+      )}
 
       {stackChartData.length > 0 ? (
         <Card className="mb-8 p-5">
@@ -332,7 +391,63 @@ export default function BatteryHealth() {
           const p = b.prognosis;
           const H = b.heuristics;
           const D = b.deterioration;
-          const lastFc = b.sohForecast[b.sohForecast.length - 1]?.soh ?? b.sohPercent;
+          if (b.sohMethod === "unavailable" || b.sohPercent == null) {
+            const socMissing = b.tripStartSocPct == null || b.tripEndSocPct == null;
+            return (
+              <Card key={b.vehicleId} className="p-5">
+                <div className="text-lg font-semibold text-ink">{b.registration}</div>
+                <p className="mt-2 text-sm text-ink-muted">{p.summary}</p>
+                <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+                  {socMissing ? (
+                    <div className="sm:col-span-2">
+                      <SignalGate state="unavailable" label="SOC not in trip report for this vehicle" />
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-line bg-surface-page px-3 py-2">
+                      Startfl → Endfl{" "}
+                      <span className="font-semibold text-ink">
+                        {b.tripStartSocPct}% → {b.tripEndSocPct}%
+                      </span>
+                    </div>
+                  )}
+                  <div className="rounded-lg border border-line bg-surface-page px-3 py-2">
+                    Startdte → Enddte{" "}
+                    <span className="font-semibold text-ink">
+                      {b.tripStartDteKm || b.tripEndDteKm ? `${b.tripStartDteKm ?? "—"} → ${b.tripEndDteKm ?? "—"}` : "—"}
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-line bg-surface-page px-3 py-2">
+                    GPS distance{" "}
+                    <span className="font-semibold text-ink">{b.gpsDistanceKm != null ? `${b.gpsDistanceKm} km` : "—"}</span>
+                  </div>
+                  <div className="rounded-lg border border-line bg-surface-page px-3 py-2">
+                    Report energy used <span className="font-semibold text-ink">{b.tripEnergyUsed ?? "—"}</span>
+                  </div>
+                  <div className="rounded-lg border border-line bg-surface-page px-3 py-2">
+                    Mileage <span className="font-semibold text-ink">{b.tripEfficiency ?? "—"}</span>
+                  </div>
+                  <div className="rounded-lg border border-line bg-surface-page px-3 py-2">
+                    Charging min <span className="font-semibold text-ink">{b.tripChargingMin ?? "—"}</span>
+                  </div>
+                  <div className="rounded-lg border border-line bg-surface-page px-3 py-2">
+                    km per SOC point <span className="font-semibold text-ink">{b.kmPerSocPoint ?? "—"}</span>
+                  </div>
+                  <div className="rounded-lg border border-line bg-surface-page px-3 py-2">
+                    Cycle proxy (gps km / typical range){" "}
+                    <span className="font-semibold text-ink">{b.cycleEstimate ?? "—"}</span>
+                  </div>
+                  <div className="rounded-lg border border-line bg-surface-page px-3 py-2 sm:col-span-2">
+                    Electrical accessory health — device {b.deviceMinV ?? "—"}–{b.deviceMaxV ?? "—"} V · 12V {b.auxMinV ?? "—"}–
+                    {b.auxMaxV ?? "—"} V (not pack SOH)
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-ink-faint">
+                  Capacity SOH % is unavailable from GPS + trip files. Cell ΔmV is not in the workbook.
+                </p>
+              </Card>
+            );
+          }
+          const lastFc = b.sohForecast[b.sohForecast.length - 1]?.soh ?? b.sohPercent ?? 0;
           const yMin = Math.max(48, Math.min(p.thresholdSoh - 12, lastFc - 6));
           return (
             <Card key={b.vehicleId} className="overflow-hidden p-0">

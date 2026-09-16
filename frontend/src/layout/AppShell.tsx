@@ -4,6 +4,7 @@ import {
   Bike,
   IndianRupee,
   LayoutGrid,
+  Radio,
   MapPin,
   Route,
   Settings2,
@@ -12,7 +13,8 @@ import {
   Wrench,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useAuth } from "@/auth/AuthProvider";
 
 const nav = [
   { to: "/", label: "Command center", icon: LayoutGrid, end: true },
@@ -25,6 +27,7 @@ const nav = [
   { to: "/asset-lifecycle", label: "Asset lifecycle", icon: Route },
   { to: "/drivers", label: "Drivers", icon: Shield },
   { to: "/portfolio-value", label: "Portfolio value", icon: IndianRupee },
+  { to: "/can-telemetry", label: "Telemetry", icon: Radio },
 ];
 
 function formatClock() {
@@ -39,8 +42,16 @@ function formatClock() {
 
 export function AppShell({ clock }: { clock?: string }) {
   const time = clock ?? formatClock();
+  const { user, logout } = useAuth();
+  const navTo = useNavigate();
+
+  function signOut() {
+    logout();
+    navTo("/login", { replace: true });
+  }
+
   return (
-    <div className="flex min-h-full">
+    <div className="flex min-h-full pb-16 lg:pb-0">
       <aside className="hidden w-64 shrink-0 border-r border-line bg-white lg:block">
         <div className="flex h-full flex-col gap-6 px-4 py-6">
           <div className="flex items-center gap-3 px-2">
@@ -73,7 +84,7 @@ export function AppShell({ clock }: { clock?: string }) {
             ))}
           </nav>
           <div className="rounded-lg border border-dashed border-line px-3 py-2 text-xs text-ink-muted">
-            GPS + CAN · 2W · Bengaluru demo fleet
+            GPS + trip · BluWheelz files · Bosch e-inter
           </div>
         </div>
       </aside>
@@ -89,7 +100,7 @@ export function AppShell({ clock }: { clock?: string }) {
                   e-inter <span className="font-normal text-ink-muted">Electric fleet operations</span>
                 </div>
                 <div className="text-xs font-medium uppercase tracking-wide text-ink-faint">
-                  GPS telematics · CAN bus · 2W · Bengaluru
+                  GPS telematics · Intellicar CAN · Bosch e-inter
                 </div>
               </div>
             </div>
@@ -99,12 +110,16 @@ export function AppShell({ clock }: { clock?: string }) {
                 <span className="h-1.5 w-1.5 rounded-full bg-live" />
                 LIVE
               </span>
+              <span className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-ink shadow-sm">
+                <UserRound className="h-4 w-4 text-ink-muted" />
+                {user?.displayName ?? user?.username ?? "Operator"}
+              </span>
               <button
                 type="button"
+                onClick={signOut}
                 className="inline-flex items-center gap-2 rounded-lg border border-line bg-white px-3 py-2 text-sm font-medium text-ink shadow-sm hover:bg-surface-page"
               >
-                <UserRound className="h-4 w-4 text-ink-muted" />
-                Operator
+                Sign out
               </button>
             </div>
           </div>
@@ -113,6 +128,7 @@ export function AppShell({ clock }: { clock?: string }) {
           <Outlet />
         </main>
       </div>
+      <MobileNav />
     </div>
   );
 }
@@ -141,7 +157,9 @@ export function MobileNav() {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-white/95 px-2 py-2 backdrop-blur lg:hidden">
       <div className="mx-auto flex max-w-lg justify-between gap-1 overflow-x-auto">
-        {nav.slice(0, 5).map((item) => (
+        {nav
+          .filter((item) => ["/", "/can-telemetry", "/gps-devices", "/maintenance", "/analytics"].includes(item.to))
+          .map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

@@ -1,19 +1,35 @@
 import { Router } from "express";
 import { z } from "zod";
+import { isDemoMode } from "../db/client.js";
 import { fleetStore } from "../store/fleetStore.js";
-
 export const apiRouter = Router();
 
-apiRouter.get("/health", (_req, res) => {
-  res.json({ ok: true, product: "e-inter", layer: "api" });
+apiRouter.get("/health", async (_req, res) => {
+  let database = false;
+  if (!isDemoMode()) {
+    try {
+      const { getPool } = await import("../db/client.js");
+      await getPool().query("SELECT 1");
+      database = true;
+    } catch {
+      database = false;
+    }
+  }
+  res.json({
+    ok: true,
+    product: "e-inter",
+    layer: "api",
+    mode: isDemoMode() ? "demo" : "live",
+    database,
+  });
 });
 
-apiRouter.get("/command-center", (_req, res) => {
-  res.json(fleetStore.commandCenterSummary());
+apiRouter.get("/command-center", async (_req, res) => {
+  res.json(await fleetStore.commandCenterSummary());
 });
 
-apiRouter.get("/policy", (_req, res) => {
-  res.json(fleetStore.policy);
+apiRouter.get("/policy", async (_req, res) => {
+  res.json(await fleetStore.getPolicy());
 });
 
 const policySchema = z.object({
@@ -28,17 +44,18 @@ const policySchema = z.object({
   stalePositionMinutes: z.number().min(1).max(240).optional(),
   lowSocAlertPercent: z.number().min(5).max(80).optional(),
   geofenceBreachAlerts: z.boolean().optional(),
+  deviceBatteryAlertVolts: z.number().min(2).max(6).optional(),
+  highlightGpsReportMismatch: z.boolean().optional(),
 });
 
-apiRouter.put("/policy", (req, res) => {
+apiRouter.put("/policy", async (req, res) => {
   const parsed = policySchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  fleetStore.policy = { ...fleetStore.policy, ...parsed.data };
-  res.json(fleetStore.policy);
+  res.json(await fleetStore.updatePolicy(parsed.data));
 });
 
-apiRouter.get("/vehicles", (_req, res) => {
-  res.json(fleetStore.vehicles);
+apiRouter.get("/vehicles", async (_req, res) => {
+  res.json(await fleetStore.listVehicles());
 });
 
 const registerVehicleSchema = z.object({
@@ -53,33 +70,43 @@ const registerVehicleSchema = z.object({
   odometerKm: z.number().nonnegative(),
   socPercent: z.number().min(0).max(100),
   locationLabel: z.string().min(1),
+  oemPlatform: z.enum(["mahindra_zeo", "tata_ace_ev", "switch_ev", "eicher_ev"]).optional(),
+  nominalCapacityAh: z.number().positive().nullable().optional(),
+  commissionedOn: z.string().optional(),
 });
 
-apiRouter.post("/vehicles", (req, res) => {
+apiRouter.post("/vehicles", async (req, res) => {
   const parsed = registerVehicleSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const v = fleetStore.addVehicle(parsed.data);
-  res.status(201).json(v);
+  if (!isDemoMode() && !parsed.data.oemPlatform) {
+    return res.status(400).json({ error: "oem_platform_required" });
+  }
+  try {
+    const v = await fleetStore.addVehicle(parsed.data);
+    res.status(201).json(v);
+  } catch (err) {
+    const status = (err as { status?: number }).status ?? 500;
+    res.status(status).json({ error: (err as Error).message });
+  }
 });
 
-apiRouter.get("/devices", (_req, res) => {
-  res.json(fleetStore.devices);
+apiRouter.get("/devices", async (_req, res) => {
+  res.json(await fleetStore.listDevices());
 });
 
-apiRouter.post("/devices", (req, res) => {
+apiRouter.post("/devices", async (req, res) => {
   const serial = typeof req.body?.serial === "string" ? req.body.serial : undefined;
-  const d = fleetStore.registerDevice(serial);
-  res.status(201).json(d);
+  res.status(201).json(await fleetStore.registerDevice(serial));
 });
 
-apiRouter.post("/devices/:id/unpair", (req, res) => {
-  const d = fleetStore.unpairDevice(req.params.id);
+apiRouter.post("/devices/:id/unpair", async (req, res) => {
+  const d = await fleetStore.unpairDevice(req.params.id);
   if (!d) return res.status(404).json({ error: "not_found" });
   res.json(d);
 });
 
-apiRouter.get("/maintenance", (_req, res) => {
-  res.json(fleetStore.maintenance);
+apiRouter.get("/maintenance", async (_req, res) => {
+  res.json(await fleetStore.listMaintenance());
 });
 
 const maintSchema = z.object({
@@ -92,10 +119,10 @@ const maintSchema = z.object({
   notes: z.string(),
 });
 
-apiRouter.post("/maintenance", (req, res) => {
+apiRouter.post("/maintenance", async (req, res) => {
   const parsed = maintSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: parsed.error.flatten() });
-  const row = fleetStore.addMaintenance({
+  const row = await fleetStore.addMaintenance({
     ...parsed.data,
     odometerAtDueKm: parsed.data.odometerAtDueKm ?? null,
     vendor: parsed.data.vendor ?? null,
@@ -103,26 +130,30 @@ apiRouter.post("/maintenance", (req, res) => {
   res.status(201).json(row);
 });
 
-apiRouter.patch("/maintenance/:id", (req, res) => {
+apiRouter.patch("/maintenance/:id", async (req, res) => {
   const status = z.enum(["open", "in_progress", "done"]).safeParse(req.body?.status);
   if (!status.success) return res.status(400).json({ error: "invalid_status" });
-  const row = fleetStore.updateMaintenanceStatus(req.params.id, status.data);
+  const row = await fleetStore.updateMaintenanceStatus(req.params.id, status.data);
   if (!row) return res.status(404).json({ error: "not_found" });
   res.json(row);
 });
 
-apiRouter.get("/analytics/battery-health", (_req, res) => {
-  res.json({ updatedAt: new Date().toISOString(), items: fleetStore.batteryHealth() });
+apiRouter.get("/analytics/battery-health", async (_req, res) => {
+  res.json({ updatedAt: new Date().toISOString(), items: await fleetStore.batteryHealth() });
 });
 
-apiRouter.get("/analytics/asset-lifecycle", (_req, res) => {
-  res.json({ updatedAt: new Date().toISOString(), items: fleetStore.lifecycle() });
+apiRouter.get("/analytics/asset-lifecycle", async (_req, res) => {
+  res.json({ updatedAt: new Date().toISOString(), items: await fleetStore.lifecycle() });
 });
 
-apiRouter.get("/analytics/driver-classification", (_req, res) => {
-  res.json({ updatedAt: new Date().toISOString(), items: fleetStore.drivers() });
+apiRouter.get("/analytics/driver-classification", async (_req, res) => {
+  res.json({ updatedAt: new Date().toISOString(), items: await fleetStore.drivers() });
 });
 
-apiRouter.get("/analytics/portfolio-valuation", (_req, res) => {
-  res.json(fleetStore.portfolioValuation());
+apiRouter.get("/analytics/portfolio-valuation", async (_req, res) => {
+  res.json(await fleetStore.portfolioValuation());
+});
+
+apiRouter.get("/trips", async (_req, res) => {
+  res.json({ updatedAt: new Date().toISOString(), items: await fleetStore.listTrips() });
 });

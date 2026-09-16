@@ -22,12 +22,14 @@ export const initialPolicy: FleetPolicy = {
   stalePositionMinutes: 15,
   lowSocAlertPercent: 20,
   geofenceBreachAlerts: false,
+  deviceBatteryAlertVolts: 3.9,
+  highlightGpsReportMismatch: true,
 };
 
 const baseVehicles: Vehicle[] = [
   {
     id: "v1",
-    registration: "KA01EV1001",
+    registration: "KA01DM1001",
     displayName: "Ops · MG Road",
     model: "E-2W Urban Pro",
     telemetryMode: "can_gps",
@@ -54,7 +56,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v2",
-    registration: "KA01EV1002",
+    registration: "KA01DM1002",
     displayName: "Depot north lead",
     model: "E-2W Urban Pro",
     telemetryMode: "gps_only",
@@ -73,7 +75,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v3",
-    registration: "KA01EV1003",
+    registration: "KA01DM1003",
     displayName: "Whitefield loop",
     model: "City Glide X",
     telemetryMode: "can_gps",
@@ -100,7 +102,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v4",
-    registration: "KA01EV1004",
+    registration: "KA01DM1004",
     displayName: "Koramangala",
     model: "E-2W Urban Pro",
     telemetryMode: "gps_only",
@@ -119,7 +121,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v5",
-    registration: "KA01EV1005",
+    registration: "KA01DM1005",
     displayName: "HSR sector",
     model: "City Glide X",
     telemetryMode: "can_gps",
@@ -146,7 +148,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v6",
-    registration: "KA01EV1006",
+    registration: "KA01DM1006",
     displayName: "JP Nagar",
     model: "E-2W Urban Pro",
     telemetryMode: "gps_only",
@@ -165,7 +167,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v7",
-    registration: "KA01EV1007",
+    registration: "KA01DM1007",
     displayName: "Yelahanka",
     model: "E-2W Urban Pro",
     telemetryMode: "can_gps",
@@ -192,7 +194,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v8",
-    registration: "KA01EV1008",
+    registration: "KA01DM1008",
     displayName: "Electronic City",
     model: "City Glide X",
     telemetryMode: "can_gps",
@@ -219,7 +221,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v9",
-    registration: "KA01EV1009",
+    registration: "KA01DM1009",
     displayName: "Marathahalli",
     model: "E-2W Urban Pro",
     telemetryMode: "gps_only",
@@ -238,7 +240,7 @@ const baseVehicles: Vehicle[] = [
   },
   {
     id: "v10",
-    registration: "KA01EV1010",
+    registration: "KA01DM1010",
     displayName: "BTM layout",
     model: "E-2W Urban Pro",
     telemetryMode: "can_gps",
@@ -371,7 +373,7 @@ export const initialMaintenance: MaintenanceItem[] = [
 
 type BatteryHealthCore = Pick<
   BatteryHealthPoint,
-  "vehicleId" | "registration" | "sohPercent" | "cycleEstimate" | "imbalanceMv" | "trend"
+  "vehicleId" | "registration" | "sohPercent" | "sohMethod" | "cycleEstimate" | "imbalanceMv" | "trend"
 >;
 
 export function buildBatteryHealth(vehicles: Vehicle[]): BatteryHealthCore[] {
@@ -379,16 +381,17 @@ export function buildBatteryHealth(vehicles: Vehicle[]): BatteryHealthCore[] {
     vehicleId: v.id,
     registration: v.registration,
     sohPercent: v.can
-      ? Math.min(99, 72 + Math.round(v.can.bmsHealthScore / 5))
+      ? Math.min(99, 72 + Math.round((v.can.bmsHealthScore ?? 90) / 5))
       : 78 + (v.odometerKm % 7),
+    sohMethod: "demo" as const,
     cycleEstimate: 400 + Math.round(v.odometerKm / 40),
-    imbalanceMv: v.can
+    imbalanceMv: v.can && v.can.maxCellV != null && v.can.minCellV != null
       ? Math.round((v.can.maxCellV - v.can.minCellV) * 1000)
       : 12 + (v.id.charCodeAt(1) % 9),
     trend:
-      v.can && v.can.bmsHealthScore < 85
+      v.can && (v.can.bmsHealthScore ?? 90) < 85
         ? "degrading"
-        : v.can && v.can.bmsHealthScore > 91
+        : v.can && (v.can.bmsHealthScore ?? 90) > 91
           ? "improving"
           : "stable",
   }));

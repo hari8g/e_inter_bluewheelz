@@ -2,6 +2,7 @@ import { Bike, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "@/api/client";
+import type { OemPlatform } from "@/types/api";
 import { PageHeader } from "@/layout/AppShell";
 import { Button } from "@/ui/Button";
 import { Callout } from "@/ui/Callout";
@@ -12,9 +13,11 @@ import { Input, Select } from "@/ui/Input";
 export default function AddVehicle() {
   const nav = useNavigate();
   const [telemetryMode, setTelemetryMode] = useState<"gps_only" | "can_gps">("gps_only");
+  const [oemPlatform, setOemPlatform] = useState<OemPlatform | "">("tata_ace_ev");
+  const [nominalAh, setNominalAh] = useState(200);
   const [registration, setRegistration] = useState("KA01EV9001");
   const [displayName, setDisplayName] = useState("");
-  const [model, setModel] = useState("E-2W Urban Pro");
+  const [model, setModel] = useState("Tata Ace EV");
   const [allowImmobilise, setAllowImmobilise] = useState(true);
   const [seedLat, setSeedLat] = useState(12.97);
   const [seedLng, setSeedLng] = useState(77.59);
@@ -24,10 +27,18 @@ export default function AddVehicle() {
   const [locationLabel, setLocationLabel] = useState("Depot — Bengaluru");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [fileFleet, setFileFleet] = useState(false);
 
   useEffect(() => {
     setMsg(null);
   }, [telemetryMode]);
+
+  useEffect(() => {
+    api
+      .commandCenter()
+      .then((d) => setFileFleet(Boolean(d.dataSource?.startsWith("file:"))))
+      .catch(() => setFileFleet(false));
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,6 +54,8 @@ export default function AddVehicle() {
         seedLat,
         seedLng,
         kwhPack,
+        oemPlatform: oemPlatform || undefined,
+        nominalCapacityAh: oemPlatform === "eicher_ev" ? nominalAh : undefined,
         odometerKm,
         socPercent,
         locationLabel,
@@ -61,12 +74,20 @@ export default function AddVehicle() {
         title="Register vehicle"
         description="e-inter extends e-lite with selectable telematics: GPS-only field units or CAN+GPS gateways for pack-level analytics and predictive maintenance."
       />
+      {fileFleet ? (
+        <Callout icon={Info}>
+          <span className="font-semibold text-ink">File fleet is loaded from Database/</span> — GPS CSVs and the BluWheelz
+          trip workbook already populate command centre, telemetry, and analytics. New vehicles default to GPS-only.
+          Do not assume CAN+GPS unless a gateway is actually fitted.
+        </Callout>
+      ) : (
       <Callout icon={Info}>
         <span className="font-semibold text-ink">Telematics profile</span> — Choose{" "}
         <span className="font-medium">CAN + GPS</span> when a gateway is wired to the BMS/inverter. The command centre
         unlocks motor temperature, cell spread, and health scores. GPS-only remains fully supported for lightweight
         deployments.
       </Callout>
+      )}
       <Card className="mt-6">
         <form className="space-y-6" onSubmit={onSubmit}>
           <div className="grid gap-4 md:grid-cols-2">
@@ -89,9 +110,33 @@ export default function AddVehicle() {
                 onChange={(e) => setDisplayName(e.target.value)}
               />
             </Field>
+            <Field label="OEM platform" hint="Required for live Intellicar ingest. Drives capability gating.">
+              <Select
+                value={oemPlatform}
+                onChange={(e) => {
+                  const p = e.target.value as OemPlatform | "";
+                  setOemPlatform(p);
+                  if (p === "tata_ace_ev") setModel("Tata Ace EV");
+                  if (p === "mahindra_zeo") setModel("Mahindra Zeo");
+                  if (p === "switch_ev") setModel("Switch IeV");
+                  if (p === "eicher_ev") setModel("Eicher Pro X");
+                }}
+              >
+                <option value="">Demo / unspecified</option>
+                <option value="tata_ace_ev">Tata Ace EV (58 params, cells)</option>
+                <option value="mahindra_zeo">Mahindra Zeo</option>
+                <option value="switch_ev">Switch (no cell data / no SOH)</option>
+                <option value="eicher_ev">Eicher (coulomb-counted SOH)</option>
+              </Select>
+            </Field>
             <Field label="Model" hint="Shown on asset cards and maintenance views.">
               <Input value={model} onChange={(e) => setModel(e.target.value)} required />
             </Field>
+            {oemPlatform === "eicher_ev" ? (
+              <Field label="Nominal capacity (Ah)" hint="Denominator for coulomb-counted SOH. Required on Eicher.">
+                <Input type="number" value={nominalAh} onChange={(e) => setNominalAh(Number(e.target.value))} />
+              </Field>
+            ) : null}
           </div>
           <label className="flex items-center gap-2 text-sm text-ink">
             <input

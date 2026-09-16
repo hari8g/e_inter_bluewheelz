@@ -43,8 +43,8 @@ export default function GpsDevices() {
   return (
     <div className="pb-20 lg:pb-0">
       <PageHeader
-        title="GPS & gateway devices"
-        description="Register ELITE-GPS units or CAN gateways and bind them to two-wheeler assets. CAN paths unlock BMS snapshots consumed by battery health and maintenance signals."
+        title="GPS data sources"
+        description="File devices from Database/ GPS CSVs. Serial BLU-GPS-KA01AS… with point count, first/last fix, and last device / 12V. These are traces, not live paired two-wheelers."
       />
       <Card className="mb-8">
         <div className="flex flex-col gap-4 md:flex-row md:items-end">
@@ -71,7 +71,9 @@ export default function GpsDevices() {
               <th className="px-5 py-3">Firmware</th>
               <th className="px-5 py-3">Type</th>
               <th className="px-5 py-3">Last seen</th>
-              <th className="px-5 py-3">Paired 2W</th>
+              <th className="px-5 py-3">Points / span</th>
+              <th className="px-5 py-3">Last batteries</th>
+              <th className="px-5 py-3">Paired vehicle</th>
               <th className="px-5 py-3">Actions</th>
             </tr>
           </thead>
@@ -97,12 +99,23 @@ export default function GpsDevices() {
                       timeStyle: "medium",
                     }).format(new Date(d.lastSeenAt))}
                   </td>
+                  <td className="px-5 py-4 text-xs text-ink-muted">
+                    {d.pointCount != null ? `${d.pointCount.toLocaleString("en-IN")} pts` : "—"}
+                    {d.firstFixAt ? (
+                      <>
+                        <br />
+                        {d.firstFixAt.slice(0, 10)} → {d.lastSeenAt.slice(0, 10)}
+                      </>
+                    ) : null}
+                  </td>
+                  <td className="px-5 py-4 text-xs text-ink-muted">
+                    Dev {d.lastDeviceBatteryV ?? "—"} V
+                    <br />
+                    12V {d.lastAuxBatteryV ?? "—"} V
+                  </td>
                   <td className="px-5 py-4">
                     {reg ? (
-                      <>
-                        <span className="font-semibold text-ink">{reg}</span>
-                        <span className="ml-1 text-xs text-ink-faint">(2W)</span>
-                      </>
+                      <span className="font-semibold text-ink">{reg}</span>
                     ) : (
                       <span className="text-ink-faint">Unpaired</span>
                     )}

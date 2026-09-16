@@ -76,6 +76,12 @@ function buildLocalOperatorReadout(a: AssetLifecycleStage): OperatorReadout {
     findings.push(
       "GPS-only path: thermal and parts of the wear model are inferred from odometer and policy defaults, not live inverter temperature.",
     );
+  } else if (H.canObservability === "partial") {
+    findings.push(
+      "CAN uplink is present but this platform does not expose cell temperatures or voltages — thermal and Δcell views are unavailable, not inferred.",
+    );
+  } else if (H.canObservability === "full") {
+    findings.push("CAN + GPS uplink present: thermal and electrical stress views are grounded in live gateway data.");
   } else {
     findings.push("CAN + GPS uplink present: thermal and electrical stress views are grounded in live gateway data.");
   }
@@ -87,15 +93,11 @@ function buildLocalOperatorReadout(a: AssetLifecycleStage): OperatorReadout {
     actions.push("Review route length, swap policy, and peak-hour dispatch with the depot supervisor.");
   }
 
-  if (canGps && H.thermalStressIndex >= 68) {
+  if (canGps && H.canObservability === "full" && (H.thermalStressIndex ?? 0) >= 68) {
     findings.push(
       `CAN thermal stress is elevated (${H.thermalStressIndex}/100): motor or stage temperatures often leave the comfort band.`,
     );
     actions.push("Correlate trips with grade and ambient temperature; consider staggered charging to reduce heat-soak starts.");
-  } else if (!canGps && H.thermalStressIndex >= 62) {
-    findings.push(
-      `Thermal index (${H.thermalStressIndex}/100) is model-only without live CAN temperature — treat as directional until CAN is fitted.`,
-    );
   }
 
   if (H.depthOfDischargeScore <= 42) {
