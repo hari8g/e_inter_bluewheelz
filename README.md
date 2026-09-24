@@ -1,24 +1,23 @@
 # e-inter
 
-**Repository:** [github.com/hari8g/e_inter](https://github.com/hari8g/e_inter)
+**Repository:** [github.com/hari8g/e_inter_bluewheelz](https://github.com/hari8g/e_inter_bluewheelz)
 
-**e-inter** is an intermediate electric-fleet SaaS demo: everything you would expect from a lightweight **GPS telematics** command centre (in the spirit of **e-lite**), plus **CAN-aware** signals, **battery health** analytics with deterioration attribution, **asset lifecycle** planning (odometer, major-service dates, heuristics), **driver classification**, and **maintenance** hooks.
+**e-inter** is the Bosch intermediate electric-fleet console, configured here as a **BluWheelz GPS + trip** demo: operator login, three file-ingested vehicles, command-centre map/playback/stops, and honesty-gated battery / lifecycle / driver / portfolio pages.
 
-The repo is split into **`frontend/`** (React + Vite + Tailwind + Recharts + Leaflet) and **`backend/`** (Express + TypeScript, in-memory demo fleet).
+The repo is split into **`frontend/`** (React + Vite + Tailwind + Recharts + Leaflet) and **`backend/`** (Express + TypeScript). Full feature list: **[FEATURES.md](FEATURES.md)**. Partner / second-app HTTP contract: **[docs/e-inter-api.md](docs/e-inter-api.md)** and **[docs/e-inter-api.pdf](docs/e-inter-api.pdf)**.
 
-## Features
+## Features (summary)
 
 | Area | Notes |
 |------|--------|
-| **Command centre** | KPIs, policy strip, OSM map, live asset strip; CAN extras when the vehicle is `can_gps`. |
-| **Register vehicle** | GPS-only vs **CAN + GPS** telematics mode. |
-| **GPS / gateway devices** | Register units, pair/unpair semantics on the server. |
-| **Maintenance** | Work list + predictive-style work types. |
-| **Fleet policy** | Visibility toggles and thresholds; `PUT` applies immediately. |
-| **Battery health** | SOH history/forecast, imbalance risk, **fade attribution** (calendar / cyclic / Δcell / thermal), heuristic indices, fleet charts. |
-| **Asset lifecycle** | Odometer-forward cards, **next major service date**, wear curve, RUL-style fields, heuristic flags. |
-| **Driver classification** | Radar + safety trajectory (demo drivers). |
-| **Portfolio value** | NBFC / dry-lease snapshot: indicative list, FMV, and residual in INR. |
+| **Login** | Entire dashboard gated. Default `bluewheelz` / `bluewheelz`. Bosch + BluWheelz logos. |
+| **File fleet** | `Database/` GPS CSVs + trip xlsx → KA01AS1071 (Ace), KA01AS1094 (Zor Grand), KA01AS7048 (Pro X). |
+| **Command centre** | KPIs, OSM map, playback, stops, geofences, asset strip, daily km, trip ledger. |
+| **Telemetry** | GPS/trip workspace; CAN/cells gated when not in the files. |
+| **Honesty** | No invented CAN cell voltages or SOH %. Zor Grand SOC stays null. |
+| **Ops pages** | GPS devices, maintenance, policy, add vehicle. |
+| **Analytics** | Battery, lifecycle, trip quality (Drivers), portfolio FMV — null where unobservable. |
+| **Live path** | Optional Kafka + Postgres ingest (not the BluWheelz file demo). |
 
 ## Requirements
 
@@ -37,7 +36,7 @@ npm install
 npm run dev
 ```
 
-Default is **demo mode** (in-memory Bengaluru seed, plates `KA01DM1001`–`1010`).
+Default is **demo mode**. If `Database/` is present, the API loads the three BluWheelz GPS traces and trip workbook. Sign in at the UI with **`bluewheelz` / `bluewheelz`**.
 
 ### Live Intellicar path
 
@@ -89,7 +88,7 @@ For production you normally set **`VITE_API_ORIGIN`** on the frontend host to yo
 
 ## Deployment: **Render** (API) + **Vercel** (SPA)
 
-Repo: [hari8g/e_inter](https://github.com/hari8g/e_inter). The **backend** is a long-lived Node **Web Service** on [Render](https://render.com). The **frontend** is a static/Vite SPA on [Vercel](https://vercel.com). The browser talks to Render using **`VITE_API_ORIGIN`**.
+Repo: [hari8g/e_inter_bluewheelz](https://github.com/hari8g/e_inter_bluewheelz). The **backend** is a long-lived Node **Web Service** on [Render](https://render.com) (it can also serve the built SPA). The **frontend** can be a static Vite app on [Vercel](https://vercel.com); on Vercel leave **`VITE_API_ORIGIN` unset** so `/api` is rewritten to Render.
 
 ### In-memory API note
 
@@ -116,7 +115,7 @@ Render injects **`PORT`** and **`RENDER=true`**. `npm start` runs **`node dist/r
 
 ### 2) Frontend on Vercel
 
-1. [Vercel Dashboard](https://vercel.com/dashboard) → **Add New…** → **Project** → import `hari8g/e_inter`.
+1. [Vercel Dashboard](https://vercel.com/dashboard) → **Add New…** → **Project** → import `hari8g/e_inter_bluewheelz`.
 2. **Root Directory:** `frontend`.
 3. **Framework Preset:** Vite (or **Other** with **Build Command** `npm run build` and **Output Directory** `dist`).
 4. **Environment variables** → add:
@@ -141,7 +140,8 @@ Base path: **`/api/v1`**
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/health` | Liveness / product id. |
+| `POST` | `/auth/login` | Operator session (public). |
+| `GET` | `/health` | Liveness / product id (public). |
 | `GET` | `/command-center` | Aggregated fleet + vehicles + policy. |
 | `GET`/`PUT` | `/policy` | Read/update fleet policy. |
 | `GET`/`POST` | `/vehicles` | List / register vehicles. |
